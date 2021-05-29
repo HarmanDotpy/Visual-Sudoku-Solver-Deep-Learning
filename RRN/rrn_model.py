@@ -57,12 +57,12 @@ class RRN(nn.Module):
         ############################ EMBEDDING LAYERS
         # embedding the cell content {0,1,2,...,sudoku_cells}, row and column information for each cell in sudoku
         self.embed_dim = embed_dim
-        embed_1_init = torch.rand(sudoku_cells+1, self.embed_dim).to(self.device) #sudoku_cells+1 because possible digits in input : 0,1,2,3,...,sudoku_cells
-        self.embed_1 = nn.Embedding.from_pretrained(embed_1_init, freeze=False) #nn.Linear(sudoku_cells+1, self.embed_dim)
-        embed_2_init = torch.rand(sudoku_cells, self.embed_dim).to(self.device)
-        self.embed_2 = nn.Embedding.from_pretrained(embed_2_init, freeze=False) #nn.Linear(sudoku_cells, self.embed_dim)
-        embed_3_init = torch.rand(sudoku_cells, self.embed_dim).to(self.device)
-        self.embed_3 = nn.Embedding.from_pretrained(embed_3_init, freeze=False) #nn.Linear(sudoku_cells, self.embed_dim)
+        # embed_1_init = torch.rand(sudoku_cells+1, self.embed_dim).to(self.device) #sudoku_cells+1 because possible digits in input : 0,1,2,3,...,sudoku_cells
+        # self.embed_1 = nn.Embedding.from_pretrained(embed_1_init, freeze=False) #nn.Linear(sudoku_cells+1, self.embed_dim)
+        # embed_2_init = torch.rand(sudoku_cells, self.embed_dim).to(self.device)
+        # self.embed_2 = nn.Embedding.from_pretrained(embed_2_init, freeze=False) #nn.Linear(sudoku_cells, self.embed_dim)
+        # embed_3_init = torch.rand(sudoku_cells, self.embed_dim).to(self.device)
+        # self.embed_3 = nn.Embedding.from_pretrained(embed_3_init, freeze=False) #nn.Linear(sudoku_cells, self.embed_dim)
         ############################
 
 
@@ -77,19 +77,19 @@ class RRN(nn.Module):
         self.LSTM = nn.LSTMCell(input_size=hidden_dim, hidden_size=hidden_dim) # since x and m will be concatentated and fed into lstm; x and m are of shape : batch_size*8*8, hidden_dim
         
         
-    def forward(self, inp, y_true=None, loss_fn=None): # inp.shape=batch_size,9*9
+    def forward(self, inp, y_true=None, loss_fn=None, training=True): # inp.shape=batch_size,9*9
         bs = inp.shape[0]
         inp = inp.view(-1)
 
         # embed the cell content
         inp = F.one_hot(inp, self.embed_dim).float()
-        embedded_inp = inp #self.embed_1(inp) # batch_size*8*8, embed_dim
+        embedded_inp = inp #self.embed_1(inp)  # batch_size*8*8, embed_dim
         # now also get row and column info of each cell embedded
         row_col = self.row_col.repeat(bs, 1)
         inp_row = F.one_hot(row_col[:,0], self.embed_dim).float()
-        embedded_row = inp_row #self.embed_2(row_col[:,0])
+        embedded_row = inp_row # self.embed_2(row_col[:,0])
         inp_col = F.one_hot(row_col[:,1], self.embed_dim).float()
-        embedded_col = inp_col #self.embed_3(row_col[:,1])
+        embedded_col = inp_col # self.embed_3(row_col[:,1])
         
         embedded_all = torch.cat([embedded_inp,embedded_row,embedded_col], dim=1)
         x = self.embeds_to_x(embedded_all) # batch_size*8*8, hidden_dim
@@ -118,6 +118,11 @@ class RRN(nn.Module):
             h_for_msgs = h
             o = self.r_to_o_mlp(c)
             
-            l += loss_fn(o,y_true.long())
+            if training:
+                l += loss_fn(o,y_true.long())
         out = o
-        return (out,l) # out.shape = num_steps, batch_size*8*8, 9 : last dim is without-softmax over sudoku_cells(9)
+        
+        if training:
+            return (out,l) # out.shape = batch_size*8*8, 9 : last dim is without-softmax over sudoku_cells(9)
+        else:
+            return out

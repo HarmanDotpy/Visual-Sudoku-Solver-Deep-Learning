@@ -6,65 +6,10 @@ from torch.utils.data import Dataset, DataLoader, TensorDataset
 import matplotlib.pyplot as plt
 import argparse
 from rrn2 import *
+# from rrn import *
 from classifier_arabicmnist import *
 
-# def is_set_correct(array):
-#     # print(array)
-#     # print(set(array))
-#     if len(set(array)) >= 8:
-#         return True
-#     return False
-
-
-# def board_accuracy(labels):
-#     #labels are of shape (totalsmall sudokus, 8, 8,)
-#     # labels = labels.reshape((labels.shape[0]//64, -1))
-#     # labels = labels.reshape((-1, 8, 8))
-#     # print(labels.shape)
-#     # print(labels[0])
-#     # print(labels[10000])
-
-#     subatomic_correct = 0
-
-#     correct = 0
-#     total = 0
-#     #now we have labels of correct shape
-#     final_bool_arr = np.array([True for i in range(labels.shape[0])])
-#     for i in range(8):
-#         j, k = (i // 4) * 4, (i % 2) * 2
-#         # if(np.all(np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, :, i])) == True or np.all(np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, i, :])) == True or np.all(np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, k:k+2, j:j+4].reshape(-1, 8))) !=True ):
-#         #   correct+=1
-#         # total+=1
-
-#         arr1 = np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, :, i])
-#         arr2 = np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, i, :])
-#         arr3 = np.apply_along_axis(is_set_correct, axis = 1, arr = labels[:, k:k+2, j:j+4].reshape(-1, 8))
-#         arr = arr1*arr2*arr3
-#         assert(arr.shape[0] == labels.shape[0] and len(arr.shape) == 1)
-#         final_bool_arr *= arr
-#         subatomic_correct += arr1.sum() + arr2.sum() + arr3.sum()
-#         # print(subatomic_correct)
-
-#         # if len(set(labels[i,:])) != 9 or len(set(grid[:,i])) != 9 or len(set(grid[j:j+3, k:k+3].ravel())) != 9:
-#         #   return False
-#     return final_bool_arr.sum()/final_bool_arr.shape[0], subatomic_correct/(3*8*labels.shape[0])
-
-
-# def is_set_correct(array):
-#     # print(array)
-#     # print(set(array))
-#     if len(set(array)) >= 8:
-#         return True
-#     return False
-
-
 def board_accuracy(labels):
-    #labels are of shape (totalsmall images in all sudoku which is divisible by 64,)
-    # labels = labels.reshape((labels.shape[0]//64, -1))
-    # labels = labels.reshape((-1, 8, 8))
-    # print(labels.shape)
-    # print(labels[0])
-    # # print(labels[10000])
 
     subatomic_correct = 0
 
@@ -127,12 +72,16 @@ def save_plots(train_cp, val_cp, train_micro, val_micro, plts_dir, resume=False)
 parser = argparse.ArgumentParser(description='Training Recurrent Relational Network on Sudoku')
 parser.add_argument('--data_dir',type=str)
 parser.add_argument('--oneshot_file',type=str)
+parser.add_argument('--oneshot_label_file',type=str)
+
+
 parser.add_argument('--pretr_classifier',type=str)
 parser.add_argument('--loss_reg', type = str)
-parser.add_argument('--lreg_factor', type = int, default = 1)
+parser.add_argument('--lreg_factor', type = float, default = 1.)
 
 parser.add_argument('--lr_classifier', type=float, default = 1e-4)
 parser.add_argument('--lr_rrn', type=float, default = 2e-3)
+parser.add_argument('--epochs_wait_classif', type=float, default = 0)
 
 parser.add_argument('--num_epochs',type=int,default=100,help='number of epochs of training')
 parser.add_argument('--num_steps',type=int,default=32,help='number of steps in RRN')
@@ -156,11 +105,15 @@ data = np.load(args.data_dir).astype(np.uint8).reshape((-1,sudoku_cells*sudoku_c
 X_data=data[:10000]
 Y_data=data[10000:]
 
-oneshot_data = np.load(args.oneshot_file).astype(np.uint8).reshape((10,1, 28, 28))/255.
-oneshot_data = oneshot_data[:-1]
+# oneshot_data = np.load(args.oneshot_file).astype(np.uint8).reshape((10,1, 28, 28))/255.
+# oneshot_data = oneshot_data[:-1]
+oneshot_data = np.load(args.oneshot_file).astype(np.uint8).reshape((-1, 1, 28, 28))
 oneshot_data = torch.tensor(oneshot_data)
 
-oneshot_labels = torch.tensor([i for i in range(9)])
+# oneshot_labels = torch.tensor([i for i in range(9)])
+oneshot_labels = np.load(args.oneshot_label_file).astype(np.uint8)
+oneshot_labels = torch.tensor(oneshot_labels)
+
 print('oneshot_data shape = {} ,labels shape = {}'.format(oneshot_data.shape, oneshot_labels.shape))
 
 
@@ -168,6 +121,10 @@ print('oneshot_data shape = {} ,labels shape = {}'.format(oneshot_data.shape, on
 #Find true noisy labels using the classifier, X_data_truenoisy, Y_data_truenoisy
 classifier = torch.load(args.pretr_classifier, map_location=device)
 classifier.eval()
+
+# classifier = LeNet(9).to(device)
+# classifier.load_state_dict(args.pretr_classifier)
+# classifier.eval()
 
 # #load target dataset data
 # batchsize_fulldata = 64
@@ -204,6 +161,12 @@ Y_val=Y_data[int(split*Y_data.shape[0]):]
 # Y_val_truenoisy=Y_data_truenoisy[int(split*Y_data_truenoisy.shape[0]):]
 val_dataset=TensorDataset(torch.tensor(X_val),torch.tensor(Y_val))
 val_data_loader=DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=2)
+
+num_batches_id = len(train_data_loader)
+
+oneshot_dataset = TensorDataset(oneshot_data, oneshot_labels)
+oneshot_loader = DataLoader(oneshot_dataset, batch_size = oneshot_data.shape[0]//num_batches_id, shuffle = True, num_workers = 2)
+
 
 print('train and val dataset prepared')
 
@@ -261,16 +224,17 @@ for epoch in range(num_epochs):
     acc_boards, acc_8level,  = 0, 0 #for rnn output
     acc_boards_classifier, acc_8level_classifier = 0, 0
 
-    for batch_id, (X_img, Y_img) in enumerate(train_data_loader):
+    for batch_id, ((X_img, Y_img), (xclass, yclass)) in enumerate(zip(train_data_loader, oneshot_loader)):
         if X_img.shape[0] != batch_size: # probably useful for avoiding exploding/vanishing gradients
             continue
         
-        X_img, Y_img = X_img.to(device), Y_img.to(device)
+        X_img, Y_img = -1.*(X_img.to(device)-1.), -1.*(Y_img.to(device)-1.)
         # X_truenoisy, Y_truenoisy = X_truenoisy.to(device), Y_truenoisy.to(device)
 
         X = classifier(X_img.reshape(-1, 1, 28, 28).float()).reshape(X_img.shape[0], sudoku_cells*sudoku_cells, -1) # (b, 8*8, 9)
         Y = classifier(Y_img.reshape(-1, 1, 28, 28).float()).reshape(X_img.shape[0], sudoku_cells*sudoku_cells, -1) # (b, 8*8, 9)
-        oneshot_predictions = classifier(oneshot_data.reshape(-1, 1, 28, 28).float().to(device))
+        # oneshot_predictions = classifier(oneshot_data.reshape(-1, 1, 28, 28).float().to(device))
+        oneshot_predictions = classifier(xclass.reshape(-1, 1, 28, 28).float().to(device))
         # print(X.shape)
         Y_onehot = Y.argmax(dim=2) #shape (b,8*8)
         X_onehot = X.argmax(dim=2) #shape (b,8*8)
@@ -287,7 +251,10 @@ for epoch in range(num_epochs):
         # losses for regularization
         # l_input_reg = loss_fn_classifier(X.reshape(-1, X.shape[2]), X_truenoisy.reshape(-1).long())
         # l_output_reg = loss_fn_classifier(Y.reshape(-1, Y.shape[2]), Y_truenoisy.reshape(-1).long())
-        lreg = loss_fn_classifier(oneshot_predictions, oneshot_labels.long().to(device))
+        # lreg = loss_fn_classifier(oneshot_predictions, oneshot_labels.long().to(device))
+        lreg = loss_fn_classifier(oneshot_predictions, yclass.long().to(device))
+        lreg /= batch_size
+
 
         # if(args.loss_reg == 'yes' and epoch<5): #epoch condition removes the regularization once the epoch has been reached
         #     total_loss = l+l_input_reg+l_output_reg
@@ -301,7 +268,10 @@ for epoch in range(num_epochs):
 
         total_loss.backward()
         optimizer.step()
-        optimizer_classifier.step()
+        # if(epoch>args.epochs_wait_classif):
+        # if(batch_id%10>5 and epoch>5)
+        if(epoch>=10):
+            optimizer_classifier.step()
 
         # l.backward()
         # optimizer.step()
@@ -373,16 +343,16 @@ for epoch in range(num_epochs):
     acc_boards_classifier, acc_8level_classifier = 0, 0
 
     with torch.no_grad():
-        for batch_id, (X_img, Y_img) in enumerate(val_data_loader):
+        for batch_id, ((X_img, Y_img), (xclass, yclass)) in enumerate(zip(val_data_loader, oneshot_loader)):
             if X_img.shape[0] != batch_size:
                 continue
 
-            X_img, Y_img = X_img.to(device), Y_img.to(device)
+            X_img, Y_img = -1*(X_img.to(device)-1), -1*(Y_img.to(device)-1)
             # X_truenoisy, Y_truenoisy = X_truenoisy.to(device), Y_truenoisy.to(device)
 
             X = classifier(X_img.reshape(-1, 1, 28, 28).float()).reshape(X_img.shape[0], sudoku_cells*sudoku_cells, -1) # (b, 8*8, 9)
             Y = classifier(Y_img.reshape(-1, 1, 28, 28).float()).reshape(X_img.shape[0], sudoku_cells*sudoku_cells, -1) # (b, 8*8, 9)
-            oneshot_predictions = classifier(oneshot_data.reshape(-1, 1, 28, 28).float().to(device))
+            oneshot_predictions = classifier(xclass.reshape(-1, 1, 28, 28).float().to(device))
 
             # print(X.shape)
             Y_onehot = Y.argmax(dim=2) #shape (b,8*8)
@@ -394,7 +364,7 @@ for epoch in range(num_epochs):
             Y_pred = Y_.argmax(dim=1)
             l /= batch_size
 
-            lreg = loss_fn_classifier(oneshot_predictions, oneshot_labels.long().to(device))
+            lreg = loss_fn_classifier(oneshot_predictions, yclass.long().to(device))
 
             # if(args.loss_reg == 'yes' and epoch<5): #epoch condition removes the regularization once the epoch has been reached
             #     total_loss = l+l_input_reg+l_output_reg

@@ -24,7 +24,7 @@ Noise in labels limits the ability of the RRN to learn the rules of sudoku
 
 ```bash
 
-bash run_solver.sh <path_to_train> <path_to_test_query> <path_to_sample_imgs> <path_to_out_csv>
+run_solver.sh <path_to_train> <path_to_test_query> <path_to_sample_imgs> <path_to_out_csv>
 
 ```
 
@@ -33,7 +33,7 @@ Similar to the earlier part but this time, the classifier that we get from UDA i
 
 ```bash
 
-bash run_solver.sh <path_to_train> <path_to_test_query> <path_to_sample_imgs> <path_to_out_csv> true
+run_solver.sh <path_to_train> <path_to_test_query> <path_to_sample_imgs> <path_to_out_csv> true
 
 ```
 

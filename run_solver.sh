@@ -33,9 +33,9 @@ else # Part 3
     path_to_train="$1"
     path_to_test_query="$2"
     path_to_sample_imgs="$3"
-    generate1k="$4"
-    target1k="$5"
-    path_to_out_csv="$6"
+    path_to_out_csv="$4"
+    # the following joint train variable isnt used anywhere, just used to have more than 4 command line arguments
+    joint_train_variable="$5"
 
     # SAVE ALL THE REQUIRED FILES IN ./part3_temp_saves/
     mkdir ./part3_temp_saves 
@@ -57,7 +57,7 @@ else # Part 3
 
 
     #TEST THE joint trained RRN
-    python harman_scripts/joint_test_algo6.py --data_dir_query_images "$2" --pretr_classifier "./part3_temp_saves/saved_models/E_JOINT_TRAINING_classifier.pth" --model_path "./part3_temp_saves/saved_models/E_JOINT_TRAINING_rrn.pth" --output_csv "$6"
+    python harman_scripts/joint_test_algo6.py --data_dir_query_images "$2" --pretr_classifier "./part3_temp_saves/saved_models/E_JOINT_TRAINING_classifier.pth" --model_path "./part3_temp_saves/saved_models/E_JOINT_TRAINING_rrn.pth" --output_csv "$4"
 
 
 fi
